@@ -43,7 +43,8 @@ export const MyEventsPage: React.FC = () => {
     setIsEditProfileOpen,
     isAddSkillOpen,
     setIsAddSkillOpen,
-    setIsVerificationModalOpen
+    setIsVerificationModalOpen,
+    savedEventIds
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'skills' | 'transcript' | 'saved' | 'upcoming' | 'attended'>('skills');
@@ -70,7 +71,7 @@ export const MyEventsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [savedEventIds]);
 
   const stats = activity?.stats || {
     eventsAttended: 0,

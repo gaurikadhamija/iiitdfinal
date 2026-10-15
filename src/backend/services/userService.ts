@@ -145,7 +145,7 @@ export class UserService {
       return { saved: false };
     } else {
       const id = `sav_${Date.now()}`;
-      db.prepare('INSERT INTO saved_events (id, user_id, event_id, saved_at) VALUES (?, ?, ?, datetime("now"))').run(id, userId, eventId);
+      db.prepare("INSERT INTO saved_events (id, user_id, event_id, saved_at) VALUES (?, ?, ?, datetime('now'))").run(id, userId, eventId);
       return { saved: true };
     }
   }

@@ -280,15 +280,51 @@ export const api = {
   // Saved Events & Registrations
   async getSavedEvents(): Promise<EventItem[]> {
     try {
-      const res = await fetch(`${API_BASE}/events/saved`, {
-        headers: { ...getAuthHeader() },
-      });
-      if (!res.ok) {
-        console.warn('Failed to fetch saved events, returning empty list');
-        return [];
+      const authHeader = getAuthHeader();
+      if (authHeader.Authorization) {
+        const res = await fetch(`${API_BASE}/events/saved`, {
+          headers: { ...authHeader },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const serverEvents: EventItem[] = json.data || [];
+          
+          // Also incorporate any guest sessions saved locally
+          const raw = safeStorage.getItem('worthwhile_saved_sessions');
+          if (raw) {
+            try {
+              const guestIds: string[] = JSON.parse(raw);
+              if (Array.isArray(guestIds) && guestIds.length > 0) {
+                const existingIds = new Set(serverEvents.map(e => e.id));
+                const all = await this.getEvents();
+                for (const ev of all) {
+                  if (guestIds.includes(ev.id) && !existingIds.has(ev.id)) {
+                    serverEvents.push(ev);
+                  }
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }
+          return serverEvents;
+        }
       }
-      const json = await res.json();
-      return json.data || [];
+
+      // Guest mode or unauthenticated fallback: load saved IDs from safeStorage
+      const raw = safeStorage.getItem('worthwhile_saved_sessions');
+      if (raw) {
+        try {
+          const ids: string[] = JSON.parse(raw);
+          if (Array.isArray(ids) && ids.length > 0) {
+            const all = await this.getEvents();
+            return all.filter(ev => ids.includes(ev.id));
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return [];
     } catch (e) {
       console.warn('Network issue fetching saved events:', e);
       return [];
@@ -296,13 +332,53 @@ export const api = {
   },
 
   async toggleSaveEvent(eventId: string): Promise<{ saved: boolean }> {
-    const res = await fetch(`${API_BASE}/events/${eventId}/save`, {
-      method: 'POST',
-      headers: { ...getAuthHeader() },
-    });
-    if (!res.ok) throw new Error('Failed to toggle save');
-    const json = await res.json();
-    return json.data;
+    const authHeader = getAuthHeader();
+    if (!authHeader.Authorization) {
+      // Guest local storage mode
+      const raw = safeStorage.getItem('worthwhile_saved_sessions');
+      let ids: string[] = [];
+      try {
+        ids = raw ? JSON.parse(raw) : [];
+      } catch {
+        ids = [];
+      }
+      const isAlreadySaved = ids.includes(eventId);
+      const updated = isAlreadySaved ? ids.filter(id => id !== eventId) : [...ids, eventId];
+      safeStorage.setItem('worthwhile_saved_sessions', JSON.stringify(updated));
+      return { saved: !isAlreadySaved };
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/events/${eventId}/save`, {
+        method: 'POST',
+        headers: { ...authHeader },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        // Update local cache too
+        const raw = safeStorage.getItem('worthwhile_saved_sessions');
+        let ids: string[] = [];
+        try { ids = raw ? JSON.parse(raw) : []; } catch {}
+        if (json.data?.saved) {
+          if (!ids.includes(eventId)) ids.push(eventId);
+        } else {
+          ids = ids.filter(id => id !== eventId);
+        }
+        safeStorage.setItem('worthwhile_saved_sessions', JSON.stringify(ids));
+        return json.data;
+      }
+    } catch (e) {
+      console.warn('Backend save failed, using local storage fallback:', e);
+    }
+
+    // Graceful fallback on network or temporary auth error
+    const raw = safeStorage.getItem('worthwhile_saved_sessions');
+    let ids: string[] = [];
+    try { ids = raw ? JSON.parse(raw) : []; } catch {}
+    const isAlreadySaved = ids.includes(eventId);
+    const updated = isAlreadySaved ? ids.filter(id => id !== eventId) : [...ids, eventId];
+    safeStorage.setItem('worthwhile_saved_sessions', JSON.stringify(updated));
+    return { saved: !isAlreadySaved };
   },
 
   async registerForEvent(eventId: string): Promise<{ success: boolean; registered: boolean }> {

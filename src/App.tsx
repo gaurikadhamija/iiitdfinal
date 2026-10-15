@@ -18,7 +18,7 @@ import { AuthScreen } from './frontend/components/AuthScreen.js';
 import { EditProfileModal } from './frontend/components/EditProfileModal.js';
 import { StudentVerificationModal } from './frontend/components/StudentVerificationModal.js';
 import { StudentVerificationBanner } from './frontend/components/StudentVerificationBanner.js';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowRight, Bookmark, Check } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const {
@@ -31,7 +31,9 @@ const MainContent: React.FC = () => {
     isAuthenticated,
     authLoading,
     isGuestPreview,
-    setIsGuestPreview
+    setIsGuestPreview,
+    saveToast,
+    dismissSaveToast
   } = useApp();
 
   // 1. Initial Authentication Loading State
@@ -116,6 +118,28 @@ const MainContent: React.FC = () => {
           event={scoreModalEvent}
           onClose={() => setScoreModalEvent(null)}
         />
+
+        {/* Save Session Feedback Toast */}
+        {saveToast && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-[#241410] text-[#FFFDF8] shadow-2xl border border-[#5B2435]/50 animate-fade-in text-xs font-semibold backdrop-blur-md"
+          >
+            <span className="p-1.5 rounded-lg bg-[#5B2435] text-[#FFFDF8]">
+              <Bookmark className="w-3.5 h-3.5 fill-current" />
+            </span>
+            <span>{saveToast.message}</span>
+            <button
+              type="button"
+              onClick={dismissSaveToast}
+              className="ml-2 text-[#CFC1AF] hover:text-[#FFFDF8] transition-colors p-1"
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Editorial Dark Coffee/Wine Footer */}
         <Footer />

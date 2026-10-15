@@ -745,7 +745,7 @@ export const OrganizerDashboardPage: React.FC = () => {
                   disabled={isSubmitting}
                   className="px-5 py-2.5 rounded-xl bg-[#5B2435] text-[#FFFDF8] text-xs font-bold uppercase tracking-wider hover:bg-[#3F1723] transition-colors shadow-xs"
                 >
-                  {isSubmitting ? 'Publishing...' : 'Publish to Campus'}
+                  {isSubmitting ? 'Saving Session...' : 'Save & Publish Session'}
                 </button>
               </div>
             </form>

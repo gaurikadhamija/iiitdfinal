@@ -42,6 +42,8 @@ interface AppContextType {
   toggleSave: (eventId: string) => Promise<void>;
   registerForEvent: (eventId: string) => Promise<void>;
   cancelRegistration: (eventId: string) => Promise<void>;
+  saveToast: { message: string; type: 'success' | 'error' | 'info' } | null;
+  dismissSaveToast: () => void;
 
   // Comparison
   compareEventIds: string[];
@@ -95,10 +97,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [studentVerification, setStudentVerification] = useState<StudentVerification | null>(null);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
 
-  // Event interaction states
-  const [savedEventIds, setSavedEventIds] = useState<Set<string>>(new Set());
+  // Event interaction states with local safeStorage hydration
+  const [savedEventIds, setSavedEventIds] = useState<Set<string>>(() => {
+    try {
+      const raw = safeStorage.getItem('worthwhile_saved_sessions');
+      if (raw) {
+        const ids = JSON.parse(raw);
+        if (Array.isArray(ids)) return new Set(ids);
+      }
+    } catch {}
+    return new Set();
+  });
   const [registeredEventIds, setRegisteredEventIds] = useState<Set<string>>(new Set());
   const [compareEventIds, setCompareEventIds] = useState<string[]>(['evt_genai_masterclass', 'evt_faang_mock_interviews']);
+  const [saveToast, setSaveToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const dismissSaveToast = useCallback(() => {
+    setSaveToast(null);
+  }, []);
+
+  useEffect(() => {
+    if (!saveToast) return;
+    const timer = setTimeout(() => {
+      setSaveToast(null);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [saveToast]);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -147,7 +171,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (Array.isArray(savedData)) {
-        setSavedEventIds(new Set(savedData.map(e => e.id)));
+        const ids = new Set(savedData.map(e => e.id));
+        const raw = safeStorage.getItem('worthwhile_saved_sessions');
+        if (raw) {
+          try {
+            const guestIds = JSON.parse(raw);
+            if (Array.isArray(guestIds)) {
+              guestIds.forEach(id => ids.add(id));
+            }
+          } catch {}
+        }
+        setSavedEventIds(ids);
       }
 
       if (Array.isArray(notifs)) {
@@ -287,10 +321,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           next.delete(eventId);
         }
+        safeStorage.setItem('worthwhile_saved_sessions', JSON.stringify(Array.from(next)));
         return next;
       });
+      setSaveToast({
+        message: res.saved
+          ? '✓ Session saved to your agenda! Access it anytime in My Events.'
+          : 'Session removed from your saved list.',
+        type: 'success'
+      });
     } catch (err) {
-      console.error('Toggle save error:', err);
+      console.error('Toggle save error, applying local fallback:', err);
+      setSavedEventIds(prev => {
+        const next = new Set(prev);
+        const wasSaved = next.has(eventId);
+        if (wasSaved) next.delete(eventId);
+        else next.add(eventId);
+        safeStorage.setItem('worthwhile_saved_sessions', JSON.stringify(Array.from(next)));
+        setSaveToast({
+          message: !wasSaved
+            ? '✓ Session saved to your agenda!'
+            : 'Session removed from your saved list.',
+          type: 'success'
+        });
+        return next;
+      });
     }
   };
 
@@ -430,6 +485,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleSave,
         registerForEvent,
         cancelRegistration,
+        saveToast,
+        dismissSaveToast,
 
         // Comparison
         compareEventIds,
